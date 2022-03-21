@@ -299,6 +299,8 @@ unsigned long transfer(char *frompath, char *topath) {
         fwrite(buf, sizeof(char), 1023, to_file); 
     }
     printf("Done transfering: %s\n", frompath);
+    fclose(from_file);
+    fclose(to_file);
     return total_bytes;
 }
 
