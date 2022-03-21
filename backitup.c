@@ -46,17 +46,38 @@ sem_t bytes_sem;
 unsigned long bytes_written = 0;
 unsigned int copied_files = 0;
 
-void main() {
+void main(int argc, char* argv[]) {
     
-
+    printf("Argc: %d\n", argc);
+    int restore;
+    if(argc == 1) {
+        restore = 0; 
+        printf("Backup mode\n");
+    }
+    else if(!strcmp(argv[1], "-r")) {
+        printf("Restore mode\n");
+        restore = 1; 
+    }
+    else {
+        printf("Improper invocation: ./backitup [-r]");
+        exit(-1);
+    } 
+    // TODO
     // PARSE ARG
     // CHECK THAT ./.backup directory already exists or create if not
     t_init();
 
-    int restore = 0;
+
+    /* This one practices backup */
     char *wd = getcwd(NULL, 0); 
     char *target_dir =  concat(wd, ".backup", 1);
     //printf("Concatted string: %s\n", target_dir);
+    //
+    /* This one practices restore */
+    //int restore = 1;
+    //char *target_dir = getcwd(NULL, 0);
+    //char *wd = concat(target_dir, ".backup", 1);
+    
 
     backup(wd, target_dir, restore);
 
@@ -69,9 +90,11 @@ void main() {
     free(threads);
 
 
-    // TODO Tally files written (thread count) and bytes written
     printf("Successfully copied %u files (%lu bytes)\n", copied_files, bytes_written);
 }
+
+
+
 
 void teardown_threads(pthread_t *pthreads[]) {
    // Joining created threads
@@ -116,7 +139,8 @@ char *concat(char *str1, char* str2, int include_slash) {
 void backup(char *wd, char* td, int mode) {
     //  Responsible for free-ing memory associated with frompath, topath 
     //  variables when the file is a directory. Otherwise, the spun up thread is reponsible
-    
+   
+    printf("In backup. wd: %s, td: %s\n", wd, td); 
     DIR *dir = opendir(wd);    
     // Preparing variables for loop
     struct dirent *dirent;
@@ -125,7 +149,7 @@ void backup(char *wd, char* td, int mode) {
     char *frompath = NULL;
     char *topath = NULL;
     char *filename = NULL;
-
+    
     while((dirent = readdir(dir)) != NULL) {
         // Need to ignore . and .. files
         if(ignored_file(dirent->d_name)) continue;
@@ -196,6 +220,8 @@ void thread_main(struct thread_args *args) {
     int mode = args->mode;
     unsigned int thread_number = args->thread_number;
     char *filename = args->filename;
+    char filename_nosuf[strlen(filename)];
+    strcpy(filename_nosuf, filename);
     struct stat from_stat;
     stat(args->frompath, &from_stat);
     // Updating suffix (adding or removing .bak)
@@ -204,7 +230,8 @@ void thread_main(struct thread_args *args) {
         args->topath = add_suffix(args->topath);
     }
     else {
-        printf("[THREAD %u] Restoring %s\n", thread_number, filename);
+        filename_nosuf[strlen(filename)-4] = '\0';
+        printf("[THREAD %u] Restoring %s\n", thread_number, filename_nosuf);
         remove_suffix(args->topath);
     }
     struct stat to_stat;
@@ -220,10 +247,10 @@ void thread_main(struct thread_args *args) {
         if(from_stat.st_mtime > to_stat.st_mtime) {
             // transfer
             if(mode == BACKUP) {
-                printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename);
+                printf("[THREAD %u] WARNING: Overwriting %s.bak\n", thread_number, filename);
             }
-            else {
-                printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename);
+            else { // restore
+                printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename_nosuf);
             }
             total_bytes = transfer(args->frompath, args->topath);
             file_copied = 1;
@@ -234,21 +261,22 @@ void thread_main(struct thread_args *args) {
                 printf("[THREAD %u] %s does not need backing up\n", thread_number, filename);
             }
             else {
-                printf("[THREAD %u] %s is already the most current version\n", thread_number, filename); 
+                printf("[THREAD %u] %s is already the most current version\n", thread_number, filename_nosuf); 
             }
         }
     }
     // Handling meta data
-    if(mode == BACKUP) {
-        printf("[THREAD %u] Copied %lu bytes from %s to %s.bak\n", thread_number, total_bytes, filename, filename);
-    }
-    else {
-        printf("[THREAD %u] Copied %lu bytes from %s.bak to %s\n", thread_number, total_bytes, filename, filename);
-    }
     sem_wait(&bytes_sem);
     bytes_written = bytes_written + total_bytes; 
     if(file_copied) {
         copied_files = copied_files + 1;
+        if(mode == BACKUP) {
+            printf("[THREAD %u] Copied %lu bytes from %s to %s.bak\n", thread_number, total_bytes, filename, filename);
+        }
+        else {
+            printf("[THREAD %u] Copied %lu bytes from %s to %s\n", thread_number, total_bytes, filename, filename_nosuf);
+        }
+
     }
     sem_post(&bytes_sem); 
     // Performing cleanup
@@ -260,7 +288,7 @@ void thread_main(struct thread_args *args) {
 
 unsigned long transfer(char *frompath, char *topath) {
     // Does the data writing
-    
+    printf("In transfer: fp: %s, tp: %s\n", frompath, topath);    
     char buf[1024];
     FILE *from_file = fopen(frompath, "r");
     FILE *to_file = fopen(topath, "w+");
@@ -272,6 +300,7 @@ unsigned long transfer(char *frompath, char *topath) {
         total_bytes = total_bytes + bytes_written;
         fwrite(buf, sizeof(char), 1023, to_file); 
     }
+    printf("Done transfering: %s\n", frompath);
     return total_bytes;
 }
 
