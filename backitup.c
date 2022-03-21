@@ -199,14 +199,17 @@ void thread_main(struct thread_args *args) {
     // Updating suffix (adding or removing .bak)
     if(mode == BACKUP)  {
         printf("[THREAD %u] Backing up %s\n", thread_number, filename);
-        remove_suffix(args->topath);
+        args->topath = add_suffix(args->topath);
+        printf("Added suffix: %s\n", args->topath);
     }
     else {
         printf("[THREAD %u] Restoring %s\n", thread_number, filename);
-        args->topath = add_suffix(args->topath);
+        remove_suffix(args->topath);
+        printf("Removed suffix: %s\n", args->topath);
     }
     struct stat to_stat;
     unsigned long total_bytes;
+    printf("Stat-ing: %s\n", args->topath);
     if(stat(args->topath, &to_stat)) {
         // Assuming error means file doesn't exist. Free to transfer
         total_bytes = transfer(args->frompath, args->topath);
@@ -216,7 +219,7 @@ void thread_main(struct thread_args *args) {
         if(from_stat.st_mtime > to_stat.st_mtime) {
             // transfer
             if(mode == BACKUP) {
-                printf("[THREAD %u] WARNING: Overwriting %s.bak\n", thread_number, filename);
+                printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename);
             }
             else {
                 printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename);
