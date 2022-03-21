@@ -36,7 +36,6 @@ char *add_suffix(char *);
 unsigned long transfer(char *, char *);
 
 
-char *program_name; // So we don't try overwritting the currently running file
 // Thread management variables
 pthread_t **threads;
 unsigned int thread_counter = 0;
@@ -114,7 +113,7 @@ int ignored_file(char *filepath) {
     if(!strcmp(".", filepath)) return 1;
     if(!strcmp("..", filepath)) return 1;
     if(!strcmp(".backup", filepath)) return 1;
-    if(!strcmp(program_name, filepath)) return 1;
+    if(!strcmp("BackItUp", filepath)) return 1;
     return 0;
 }
 
