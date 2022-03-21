@@ -36,7 +36,7 @@ char *add_suffix(char *);
 unsigned long transfer(char *, char *);
 
 
-
+char *program_name; // So we don't try overwritting the currently running file
 // Thread management variables
 pthread_t **threads;
 unsigned int thread_counter = 0;
@@ -48,36 +48,32 @@ unsigned int copied_files = 0;
 
 void main(int argc, char* argv[]) {
     
-    printf("Argc: %d\n", argc);
+    // TODO  CHECK THAT ./.backup directory already exists or create if not
+    //
+    //
+    program_name = argv[0];
     int restore;
+    char *wd;
+    char *target_dir;
     if(argc == 1) {
         restore = 0; 
         printf("Backup mode\n");
+        wd = getcwd(NULL, 0); 
+        target_dir =  concat(wd, ".backup", 1);
     }
     else if(!strcmp(argv[1], "-r")) {
         printf("Restore mode\n");
         restore = 1; 
+        target_dir = getcwd(NULL, 0);
+        wd = concat(target_dir, ".backup", 1);
     }
     else {
         printf("Improper invocation: ./backitup [-r]");
         exit(-1);
     } 
-    // TODO
-    // PARSE ARG
-    // CHECK THAT ./.backup directory already exists or create if not
     t_init();
 
 
-    /* This one practices backup */
-    char *wd = getcwd(NULL, 0); 
-    char *target_dir =  concat(wd, ".backup", 1);
-    //printf("Concatted string: %s\n", target_dir);
-    //
-    /* This one practices restore */
-    //int restore = 1;
-    //char *target_dir = getcwd(NULL, 0);
-    //char *wd = concat(target_dir, ".backup", 1);
-    
 
     backup(wd, target_dir, restore);
 
@@ -118,6 +114,7 @@ int ignored_file(char *filepath) {
     if(!strcmp(".", filepath)) return 1;
     if(!strcmp("..", filepath)) return 1;
     if(!strcmp(".backup", filepath)) return 1;
+    if(!strcmp(program_name, filepath)) return 1;
     return 0;
 }
 
@@ -180,6 +177,7 @@ void backup(char *wd, char* td, int mode) {
             //Non directory file; copying
             filename = concat("", dirent->d_name, 0); // cleaned up by transfer thread
             make_thread(frompath, topath, filename, mode);
+            //sleep(8);
         }
     }
     cdir(dir);
@@ -229,7 +227,7 @@ void thread_main(struct thread_args *args) {
         printf("[THREAD %u] Backing up %s\n", thread_number, filename);
         args->topath = add_suffix(args->topath);
     }
-    else {
+    else { // Restore
         filename_nosuf[strlen(filename)-4] = '\0';
         printf("[THREAD %u] Restoring %s\n", thread_number, filename_nosuf);
         remove_suffix(args->topath);
@@ -280,6 +278,7 @@ void thread_main(struct thread_args *args) {
     }
     sem_post(&bytes_sem); 
     // Performing cleanup
+    printf("[THREAD %u] freeing stuff\n", thread_number);
     free(args->frompath);
     free(args->topath);
     free(filename);
@@ -294,6 +293,7 @@ unsigned long transfer(char *frompath, char *topath) {
     FILE *to_file = fopen(topath, "w+");
     unsigned long total_bytes = 0;
     int bytes_written = 0;
+    printf("Writing bytes\n");
     while(1) {
         bytes_written = fread(buf, sizeof(char), 1023, from_file);
         if(!bytes_written) break;
