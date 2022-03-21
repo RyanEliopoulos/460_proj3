@@ -41,9 +41,10 @@ unsigned long transfer(char *, char *);
 pthread_t **threads;
 unsigned int thread_counter = 0;
 unsigned int thread_max = 100;  // Dynamically updated if more threads end up being required
-unsigned long bytes_written = 0;
 sem_t bytes_sem;
-
+// data vars
+unsigned long bytes_written = 0;
+unsigned int copied_files = 0;
 
 void main() {
     
@@ -55,11 +56,11 @@ void main() {
     int restore = 0;
     char *wd = getcwd(NULL, 0); 
     char *target_dir =  concat(wd, ".backup", 1);
-    printf("Concatted string: %s\n", target_dir);
+    //printf("Concatted string: %s\n", target_dir);
 
     backup(wd, target_dir, restore);
 
-    printf("Returned to main function\n");
+    //printf("Returned to main function\n");
 
 
     teardown_threads(threads);
@@ -69,6 +70,7 @@ void main() {
 
 
     // TODO Tally files written (thread count) and bytes written
+    printf("Successfully copied %u files (%lu bytes)\n", copied_files, bytes_written);
 }
 
 void teardown_threads(pthread_t *pthreads[]) {
@@ -200,19 +202,18 @@ void thread_main(struct thread_args *args) {
     if(mode == BACKUP)  {
         printf("[THREAD %u] Backing up %s\n", thread_number, filename);
         args->topath = add_suffix(args->topath);
-        printf("Added suffix: %s\n", args->topath);
     }
     else {
         printf("[THREAD %u] Restoring %s\n", thread_number, filename);
         remove_suffix(args->topath);
-        printf("Removed suffix: %s\n", args->topath);
     }
     struct stat to_stat;
     unsigned long total_bytes;
-    printf("Stat-ing: %s\n", args->topath);
+    int file_copied = 0;
     if(stat(args->topath, &to_stat)) {
         // Assuming error means file doesn't exist. Free to transfer
         total_bytes = transfer(args->frompath, args->topath);
+        file_copied = 1;
     }
     else {
         // File exists. Comparing mtime
@@ -225,6 +226,7 @@ void thread_main(struct thread_args *args) {
                 printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename);
             }
             total_bytes = transfer(args->frompath, args->topath);
+            file_copied = 1;
         }
         else {
             // No transfer needed 
@@ -236,26 +238,29 @@ void thread_main(struct thread_args *args) {
             }
         }
     }
-
+    // Handling meta data
     if(mode == BACKUP) {
-        printf("Copied %lu bytes from %s to %s.bak\n", total_bytes, filename, filename);
+        printf("[THREAD %u] Copied %lu bytes from %s to %s.bak\n", thread_number, total_bytes, filename, filename);
     }
     else {
-        printf("Copied %lu bytes from %s.bak to %s\n", total_bytes, filename, filename);
+        printf("[THREAD %u] Copied %lu bytes from %s.bak to %s\n", thread_number, total_bytes, filename, filename);
     }
-
+    sem_wait(&bytes_sem);
+    bytes_written = bytes_written + total_bytes; 
+    if(file_copied) {
+        copied_files = copied_files + 1;
+    }
+    sem_post(&bytes_sem); 
+    // Performing cleanup
     free(args->frompath);
     free(args->topath);
     free(filename);
     free(args);
-
-    // TODO Tally bytes written with semaphore
-    
 }
 
 unsigned long transfer(char *frompath, char *topath) {
     // Does the data writing
-    //
+    
     char buf[1024];
     FILE *from_file = fopen(frompath, "r");
     FILE *to_file = fopen(topath, "w+");
