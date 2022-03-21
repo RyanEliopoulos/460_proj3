@@ -50,7 +50,6 @@ void main(int argc, char* argv[]) {
     // TODO  CHECK THAT ./.backup directory already exists or create if not
     //
     //
-    program_name = argv[0];
     int restore;
     char *wd;
     char *target_dir;
