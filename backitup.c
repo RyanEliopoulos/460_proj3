@@ -34,6 +34,7 @@ void teardown_threads(pthread_t *[]);
 void remove_suffix(char *);
 char *add_suffix(char *);
 unsigned long transfer(char *, char *);
+void dot_backup();
 
 
 // Thread management variables
@@ -47,9 +48,6 @@ unsigned int copied_files = 0;
 
 void main(int argc, char* argv[]) {
     
-    // TODO  CHECK THAT ./.backup directory already exists or create if not
-    //
-    //
     int restore;
     char *wd;
     char *target_dir;
@@ -69,26 +67,36 @@ void main(int argc, char* argv[]) {
         printf("Improper invocation: ./backitup [-r]");
         exit(-1);
     } 
+    // Ensure .backup exists
+    dot_backup();
+    // Prepare thread variables
     t_init();
-
-
-
+    // Engage program
     backup(wd, target_dir, restore);
-
-    //printf("Returned to main function\n");
-
-
+    // Cleanup
     teardown_threads(threads);
     free(target_dir);
     free(wd);
     free(threads);
-
-
+    // Present data
     printf("Successfully copied %u files (%lu bytes)\n", copied_files, bytes_written);
 }
 
 
-
+void dot_backup() {
+    // Checks for the .backup directory, creating it if needed
+    char *wd = getcwd(NULL, 0);
+    char *backup = concat(wd, ".backup", 1);
+    struct stat backup_stat;
+    int ret = stat(backup, &backup_stat);
+    if(ret) {
+        // Assuming error means the directory does not already exist    
+        printf("Making .backup directory\n");
+        ret = mkdir(backup, 0777);
+    }  
+    free(backup);
+    free(wd);
+}
 
 void teardown_threads(pthread_t *pthreads[]) {
    // Joining created threads
@@ -187,7 +195,9 @@ void make_thread(char *frompath, char *topath, char *filename, int mode) {
    
     // First check if we have room in the pthread array 
     if(thread_counter == thread_max) {
-        // TODO Need to reallocate memory for threads, update thread variables 
+        thread_max = thread_max * 2;
+        printf("Reallocating threads. thread max is now: %u\n", thread_max);
+        threads = realloc(threads, thread_max * sizeof(pthread_t *));
     }
     struct thread_args *args = malloc(sizeof(struct thread_args));
     args->frompath = frompath;
