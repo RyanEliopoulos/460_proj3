@@ -47,7 +47,7 @@ unsigned long bytes_written = 0;
 unsigned int copied_files = 0;
 
 void main(int argc, char* argv[]) {
-    
+    printf("here is argv[0]: %s\n", argv[0]);    
     int restore;
     char *wd;
     char *target_dir;
@@ -120,7 +120,6 @@ int ignored_file(char *filepath) {
     if(!strcmp(".", filepath)) return 1;
     if(!strcmp("..", filepath)) return 1;
     if(!strcmp(".backup", filepath)) return 1;
-    if(!strcmp("BackItUp", filepath)) return 1;
     return 0;
 }
 
@@ -258,8 +257,15 @@ void thread_main(struct thread_args *args) {
             else { // restore
                 printf("[THREAD %u] WARNING: Overwriting %s\n", thread_number, filename_nosuf);
             }
+            // Error handling if we attempt to overwrite a "busy" file
+            errno = 0;
             total_bytes = transfer(args->frompath, args->topath);
-            file_copied = 1;
+            if (errno) {
+                printf("[TREAD %u] ERROR: %s\n", thread_number, strerror(errno));
+            }
+            else {
+                file_copied = 1;
+            }
         }
         else {
             // No transfer needed 
@@ -298,7 +304,15 @@ unsigned long transfer(char *frompath, char *topath) {
     printf("In transfer: fp: %s, tp: %s\n", frompath, topath);    
     char buf[1024];
     FILE *from_file = fopen(frompath, "r");
+    if(from_file == NULL) {
+        // Errno analyzed by caller
+        return 0;
+    }
     FILE *to_file = fopen(topath, "w+");
+    if(to_file == NULL) {
+        // Errno analyzed by caller
+        return 0;
+    }
     unsigned long total_bytes = 0;
     int bytes_written = 0;
     printf("Writing bytes\n");
