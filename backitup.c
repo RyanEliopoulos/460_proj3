@@ -144,6 +144,10 @@ void backup(char *wd, char* td, int mode) {
    
     printf("In backup. wd: %s, td: %s\n", wd, td); 
     DIR *dir = opendir(wd);    
+    if(dir == NULL) {
+        printf("[MAIN THREAD] opendir error for %s: %s\n", wd, strerror(errno));
+        return;
+    }
     // Preparing variables for loop
     struct dirent *dirent;
     struct stat from_stat;
