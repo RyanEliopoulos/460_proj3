@@ -317,10 +317,10 @@ unsigned long transfer(char *frompath, char *topath) {
     int bytes_written = 0;
     printf("Writing bytes\n");
     while(1) {
-        bytes_written = fread(buf, sizeof(char), 1023, from_file);
+        bytes_written = fread(buf, 1, 1023, from_file);
         if(!bytes_written) break;
         total_bytes = total_bytes + bytes_written;
-        fwrite(buf, sizeof(char), 1023, to_file); 
+        fwrite(buf, 1, bytes_written, to_file); 
     }
     printf("Done transfering: %s\n", frompath);
     fclose(from_file);
